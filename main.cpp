@@ -1,21 +1,42 @@
 #include "Scoreboard.hpp"
+#include "constants.hpp"
+#include <arpa/inet.h>
 #include <chrono>
 #include <cstdint>
 #include <fstream>
 #include <ios>
 #include <iostream>
+#include <netinet/in.h>
 #include <ostream>
 #include <ratio>
+#include <sys/socket.h>
 #include <thread>
-
-const uint8_t SPACE_ASCII = 0x20;
-const double delay_per_byte_ms = 1200.0 / 1200.0;
-const double PRINT_INTERVAL = 10.0;
+#include <unistd.h>
 
 struct Stream {
   bool isDataReadingOut = false;
   uint8_t channel = 0;
 };
+
+void sendData(uint8_t *data, size_t len) {
+  int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+
+  sockaddr_in serverAddress;
+  serverAddress.sin_family = AF_INET;
+  serverAddress.sin_port = htons(8080);
+  inet_pton(AF_INET, "127.0.0.1", &serverAddress.sin_addr);
+
+  int c = connect(clientSocket, (struct sockaddr *)&serverAddress,
+                  sizeof(serverAddress));
+
+  if (c < 0) {
+    std::cerr << "Connection failed\n";
+  }
+
+  send(clientSocket, data, len, 0);
+  // std::cout << "Message sent" << std::endl;
+  close(clientSocket);
+}
 
 /*
  * byte: uint8_t byte thats ingested
@@ -26,6 +47,8 @@ struct Stream {
 template <typename Func>
 void processByte(uint8_t byte, Stream &stream, Func cb) {
   if (byte > 0x7f) {
+    std::string reset = "-";
+    uint8_t *bytes = reinterpret_cast<uint8_t *>(reset.data());
     stream.isDataReadingOut = (byte & 1) == 0;
     stream.channel = ((byte >> 1) & 0x1f) ^ 0x1f;
     if (stream.channel > 31) {
@@ -35,7 +58,7 @@ void processByte(uint8_t byte, Stream &stream, Func cb) {
     if (byte > 190) {
       // blank out screen
       for (int i = 0; i < 8; i++) {
-        cb(stream.channel, i, SPACE_ASCII);
+        cb(stream.channel, i, Constants::EMPTY_ASCII);;
       }
     } else if (byte > 169 && byte < 190) {
       // unsure
@@ -50,7 +73,7 @@ void processByte(uint8_t byte, Stream &stream, Func cb) {
       }
       uint8_t segmentData = byte & 0x0f;
       if ((stream.channel > 0) && (byte == 0)) {
-        segmentData = SPACE_ASCII;
+        segmentData = Constants::EMPTY_ASCII;
       } else {
         segmentData = (segmentData ^ 0x0f) + 48;
       }
@@ -87,22 +110,25 @@ int main(int argc, char *argv[]) {
   uint8_t byte;
   unsigned int fileOffset = 0;
   auto lastPrint = std::chrono::steady_clock::now();
-  std::cout << delay_per_byte_ms << "\n";
+  std::cout << Constants::DELAY_PER_BYTE_MS << "\n";
 
   while (file.read(reinterpret_cast<char *>(&byte), sizeof(byte))) {
-    processByte(byte, stream, [&scoreboard](int c, int s, int v){ scoreboard.update(c, s, v); });
+    processByte(byte, stream, [&scoreboard](uint8_t c, uint8_t s, uint8_t v) {
+      scoreboard.update(c, s, v);
+      //sendData(&v, sizeof(v));
+    });
     fileOffset++;
     auto now = std::chrono::steady_clock::now();
     double elapsed =
         std::chrono::duration<double, std::milli>(now - lastPrint).count();
-    if (elapsed >= PRINT_INTERVAL) {
+    if (elapsed >= Constants::PRINT_INTERVAL) {
       scoreboard.clearConsole();
       scoreboard.print(fileOffset);
       lastPrint = now;
     }
 
     std::this_thread::sleep_for(
-        std::chrono::duration<double, std::milli>(delay_per_byte_ms));
+        std::chrono::duration<double, std::milli>(Constants::DELAY_PER_BYTE_MS));
   }
   scoreboard.clearConsole();
   scoreboard.print(fileOffset);

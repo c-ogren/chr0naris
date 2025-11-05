@@ -1,15 +1,14 @@
 #include "Scoreboard.hpp"
+#include "constants.hpp"
 #include <iomanip>
 #include <iostream>
 #include <ostream>
 #include <sstream>
 
-constexpr char SPACE_ASCII = 0x20;
-
 Scoreboard::Scoreboard() {
   for (int i = 0; i < 32; ++i) {
     for (int j = 0; j < 8; ++j) {
-      buf[i][j] = ' ';
+      buf[i][j] = Constants::EMPTY_ASCII;
     }
   }
 }
@@ -25,7 +24,7 @@ void Scoreboard::print(unsigned int fileOffset) const {
     for (int j = 0; j < 8; ++j) {
       char c = static_cast<char>(buf[i][j]);
 
-      line << ((c == SPACE_ASCII || c == '?') ? ' ' : c);
+      line << ((c == Constants::EMPTY_ASCII || c == '?') ? ' ' : c);
     }
     line << "'";
     std::cout << line.str() << "\n";
