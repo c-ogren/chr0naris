@@ -47,8 +47,6 @@ void sendData(uint8_t *data, size_t len) {
 template <typename Func>
 void processByte(uint8_t byte, Stream &stream, Func cb) {
   if (byte > 0x7f) {
-    std::string reset = "-";
-    uint8_t *bytes = reinterpret_cast<uint8_t *>(reset.data());
     stream.isDataReadingOut = (byte & 1) == 0;
     stream.channel = ((byte >> 1) & 0x1f) ^ 0x1f;
     if (stream.channel > 31) {
@@ -58,7 +56,7 @@ void processByte(uint8_t byte, Stream &stream, Func cb) {
     if (byte > 190) {
       // blank out screen
       for (int i = 0; i < 8; i++) {
-        cb(stream.channel, i, Constants::EMPTY_ASCII);;
+        cb(stream.channel, i, Constants::EMPTY_ASCII);
       }
     } else if (byte > 169 && byte < 190) {
       // unsure
@@ -115,7 +113,6 @@ int main(int argc, char *argv[]) {
   while (file.read(reinterpret_cast<char *>(&byte), sizeof(byte))) {
     processByte(byte, stream, [&scoreboard](uint8_t c, uint8_t s, uint8_t v) {
       scoreboard.update(c, s, v);
-      //sendData(&v, sizeof(v));
     });
     fileOffset++;
     auto now = std::chrono::steady_clock::now();
@@ -127,8 +124,8 @@ int main(int argc, char *argv[]) {
       lastPrint = now;
     }
 
-    std::this_thread::sleep_for(
-        std::chrono::duration<double, std::milli>(Constants::DELAY_PER_BYTE_MS));
+    std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(
+        Constants::DELAY_PER_BYTE_MS));
   }
   scoreboard.clearConsole();
   scoreboard.print(fileOffset);
